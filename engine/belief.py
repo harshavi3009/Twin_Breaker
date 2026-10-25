@@ -91,7 +91,8 @@ def step(prev: Belief, minute_events: list[Event], spec: dict, trust: Trust,
     if not grey and forget:
         # 1. Forget: p <- (1 - eps) p + eps pi (off in the outage check, per the 12:55 decision)
         p = (1 - spec["eps"]) * p + spec["eps"] * pi
-    logp = np.log(p)
+    with np.errstate(divide="ignore"):  # a hypothesis at exactly 0 gives log(0) = -inf, which softmax handles
+        logp = np.log(p)
 
     # 2. Sensor readings: trust-mixed likelihoods, gateway ESS weights
     gateway_counts = Counter(ev.gateway_id for ev in minute_events if ev.gateway_id is not None)

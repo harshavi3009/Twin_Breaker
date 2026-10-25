@@ -1,4 +1,4 @@
-"""G3 outage hold: P(C) must not drift > 0.001 per minute during silence."""
+"""G3 outage hold: the silence step alone must not move P(C) by more than 0.001 per minute."""
 from __future__ import annotations
 
 import json
@@ -7,9 +7,10 @@ import pytest
 from pathlib import Path
 
 
-def test_outage_hold(tmp_path):
+def test_outage_hold(tmp_path, monkeypatch):
     from generator.gen import generate
     from generator.scenarios import apply_silence
+    from engine import belief
     from engine.ingest import parse_line, Ingestor
     from engine.belief import replay, Trust
 
@@ -34,11 +35,16 @@ def test_outage_hold(tmp_path):
     prior = {'N': 0.25, 'S': 0.25, 'I': 0.25, 'C': 0.25}
 
     upto = max(buckets.keys()) // 60 if buckets else 0
-    beliefs = replay(buckets, spec, trust, prior, upto)
-    p_c = {b.minute: b.p['C'] for b in beliefs}
+    p_c_silent = {b.minute: b.p['C'] for b in replay(buckets, spec, trust, prior, upto)}
 
-    # Check P(C) drift during outage window [minute 6 .. minute 14] (300s–900s)
+    # Same replay with the silence step switched off. Other gateways' real readings still move P(C)
+    # (G1/G2 drain drops to the elevated bin at minute 12), so compare the two runs, not P(C) over time.
+    monkeypatch.setattr(belief, 'silent_gateways', lambda *args, **kwargs: [])
+    trust.reset()
+    p_c_plain = {b.minute: b.p['C'] for b in replay(buckets, spec, trust, prior, upto)}
+
+    # Check the silence step's effect on P(C) during outage window [minute 6 .. minute 14] (300s–900s)
     for m in range(300 // 60 + 1, 900 // 60):
-        assert m in p_c and m - 1 in p_c, f'no belief at minute {m}'
-        assert abs(p_c[m] - p_c[m - 1]) <= 0.001, \
-            f'm={m}: |p({m})-p({m-1})|=|{round(p_c[m],6)}-{round(p_c[m-1],6)}| > 0.001'
+        assert m in p_c_silent and m in p_c_plain, f'no belief at minute {m}'
+        assert abs(p_c_silent[m] - p_c_plain[m]) <= 0.001, \
+            f'm={m}: silence moved P(C) by {round(p_c_silent[m] - p_c_plain[m], 6)} > 0.001'

@@ -1,0 +1,10 @@
+{
+  "rain>drain": {
+    "lag_min": 3,
+    "window_min": [
+      1,
+      5
+    ],
+    "method": "lagged_corr_DEV_1_10"
+  }
+}

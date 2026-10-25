@@ -80,7 +80,7 @@ def _softmax(logp: np.ndarray) -> np.ndarray:
 
 def step(prev: Belief, minute_events: list[Event], spec: dict, trust: Trust,
          prior: dict[str, float], grey: bool = False, new_clusters: int = 0,
-         silent: list[str] | tuple = ()) -> Belief:
+         silent: list[str] | tuple = (), forget: bool = True) -> Belief:
     tau = 1.0 if grey else spec["tau"]
     rho = spec["rho"]
     tables, bins = spec["tables"], spec["bins"]
@@ -88,8 +88,8 @@ def step(prev: Belief, minute_events: list[Event], spec: dict, trust: Trust,
 
     p = np.array([prev.p[h] for h in HYPS])
     pi = np.array([prior[h] for h in HYPS])
-    if not grey:
-        # 1. Forget: p <- (1 - eps) p + eps pi
+    if not grey and forget:
+        # 1. Forget: p <- (1 - eps) p + eps pi (off in the outage check, per the 12:55 decision)
         p = (1 - spec["eps"]) * p + spec["eps"] * pi
     logp = np.log(p)
 
@@ -168,7 +168,7 @@ def silent_gateways(first_minute: dict[str, int], per_minute: dict[int, list[Eve
 
 
 def replay(buckets: dict[int, list[Event]], spec: dict, trust: Trust, prior: dict[str, float],
-           upto_min: int, grey: bool = False) -> list[Belief]:
+           upto_min: int, grey: bool = False, forget: bool = True) -> list[Belief]:
     per_minute: dict[int, list[Event]] = defaultdict(list)
     for t, events in buckets.items():
         per_minute[t // 60].extend(events)
@@ -188,7 +188,7 @@ def replay(buckets: dict[int, list[Event]], spec: dict, trust: Trust, prior: dic
         events = per_minute.get(m, [])
         silent = [] if grey else silent_gateways(first_minute, per_minute, m)
         prev = step(prev, events, spec, trust, prior, grey=grey,
-                    new_clusters=clusters.get(m, 0), silent=silent)
+                    new_clusters=clusters.get(m, 0), silent=silent, forget=forget)
         recent = per_minute.get(m, []) + per_minute.get(m - 1, [])
         seen = {ev.channel for ev in recent}
         prev.coverage = {ch: ("ok" if ch in seen else "unknown") for ch in COVERAGE_GROUPS}

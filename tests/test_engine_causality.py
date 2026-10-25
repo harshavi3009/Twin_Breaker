@@ -5,10 +5,10 @@ import pytest
 
 from engine.belief import Trust, replay
 from engine.ingest import Ingestor, parse_line
-from engine.run import REGISTERED_RESPONDERS, load_spec
+from engine.live import REGISTERED_RESPONDERS, load_spec
 from engine.types import Event
-from server.live import run_live
-from server.responder_mock import reply
+from engine.live import run_live
+from generator.responder import reply
 
 ROOT = os.path.join(os.path.dirname(__file__), "..")
 FIXTURE = os.path.join(ROOT, "engine", "fixtures", "seed7_mock.jsonl")

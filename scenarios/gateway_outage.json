@@ -1,0 +1,1 @@
+{"name": "gateway_outage", "kind": "silence", "gateway_id": "G3", "channel": "drain", "start_s": 300, "duration_s": 600, "note": "G3 drain sensors and heartbeat go silent. Silence is UNKNOWN, not all-clear."}

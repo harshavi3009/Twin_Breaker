@@ -318,7 +318,7 @@
         <canvas data-role="trend"></canvas>
         <div class="ask" data-role="ask"></div>
         <div class="reasons" data-role="reasons"></div>
-        <p class="foresight">Foresight (lag-table based): not available until the lag table is frozen.</p>
+        <p class="foresight" data-role="foresight">Foresight (lag-table based): none this minute.</p>
       </section>
 
       <section class="panel" id="panel-B">
@@ -329,7 +329,7 @@
         <canvas data-role="trend"></canvas>
         <div class="ask" data-role="ask"></div>
         <div class="reasons" data-role="reasons"></div>
-        <p class="foresight">Foresight (lag-table based): not available until the lag table is frozen.</p>
+        <p class="foresight" data-role="foresight">Foresight (lag-table based): none this minute.</p>
       </section>
     </div>
 
@@ -434,6 +434,10 @@
         askBox.textContent += ` · reply: ${replies.map((r) => `${r.question_id} = ${r.answer}`).join(", ")}`;
       }
 
+      const fs = m.decision.foresight || [];
+      el(role, "foresight").textContent = fs.length
+        ? `Foresight (lag-table based): next ${fs[0].event} in ${fs[0].window_min[0]}–${fs[0].window_min[1]} min (lags estimated from DEV data)`
+        : "Foresight (lag-table based): none this minute.";
       el(role, "reasons").textContent = m.decision.reason.length
         ? "Reasons: " + m.decision.reason.map((r) => `${r.text} (${r.bits >= 0 ? "+" : ""}${r.bits} bits)`).join("; ")
         : "No reasons this minute.";

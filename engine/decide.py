@@ -26,11 +26,6 @@ class Decision:
     expected_cost: dict[str, float]
 
 
-def stub_action(minute: int) -> str:
-    # Placeholder kept for run.py until it is wired to decide(); always WATCH
-    return "WATCH"
-
-
 def expected_costs(p: dict[str, float], lam: float, cost: dict) -> dict[str, float]:
     # L[a, H] = c_a + d_H (1 - m_a) + lam f_a 1[H in {N, S}]
     out = {}

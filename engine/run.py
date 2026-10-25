@@ -3,84 +3,60 @@ import json
 import os
 import sys
 import time
-from collections import defaultdict
 
-from engine import belief, decide
-from engine.belief import HYPS, PASSIVE, Trust
+from engine.belief import HYPS, Trust, replay
 from engine.ingest import Ingestor, parse_line
+from engine.live import PRIOR, REGISTERED_RESPONDERS, load_spec, run_live  # noqa: F401 (load_spec, REGISTERED_RESPONDERS re-exported)
 
 HERE = os.path.dirname(os.path.abspath(__file__))
-CONFIG_DIR = os.path.join(HERE, "config")
 FIXTURE = os.path.join(HERE, "fixtures", "seed7_mock.jsonl")
-REGISTERED_RESPONDERS = {"marshal-W9-01"}
 PAIR_ROLES = (("P1A", "A"), ("P1B", "B"))
+GREY_ALERT_LINE = 0.7  # naive baseline: ALERT iff naive P(C) >= 0.7 (MAIN §8.5)
 
 
-def load_spec() -> dict:
-    with open(os.path.join(CONFIG_DIR, "belief_spec.json"), encoding="utf-8") as f:
-        spec = json.load(f)
-    with open(os.path.join(CONFIG_DIR, "questions.json"), encoding="utf-8") as f:
-        questions = json.load(f)
-    spec["questions"] = {q["qid"]: q["p_yes"] for q in questions}
-    return spec
-
-
-def run_episode(jsonl_path: str, lam: float = 1.0, ask_enabled: bool = True, grey: bool = False,
-                episode_id: str | None = None) -> list[dict]:
-    # Returns one belief dict and one decision dict per closed minute (section 8.2 shapes)
+def _read_events(jsonl_path: str, episode_id: str | None):
     with open(jsonl_path, encoding="utf-8") as f:
         events = [parse_line(line) for line in f.read().splitlines() if line.strip()]
     if episode_id is not None:
         events = [ev for ev in events if ev.episode_id == episode_id]
-    if not events:
-        return []
+    return events
 
+
+def _grey_rows(events, lam: float, ask_enabled: bool) -> list[dict]:
+    # Naive baseline: same tables with r = 0.8, no hysteresis, no ASK. Row shapes match the live path.
+    spec = load_spec()
     ingestor = Ingestor(REGISTERED_RESPONDERS)
     for ev in events:
         ingestor.push(ev)
     upto = ingestor.closed_upto(max(ev.received_time_s for ev in events))
-    if upto < 0:
-        return []
-
-    spec = load_spec()
-    prior = {h: 1.0 / len(HYPS) for h in HYPS}
-    buckets = ingestor.buckets()
-    trust = Trust(spec)
-    beliefs = belief.replay(buckets, spec, trust, prior, upto, grey=grey)
-
-    per_minute: dict[int, list] = defaultdict(list)
-    for t, evs in buckets.items():
-        per_minute[t // 60].extend(evs)
-
+    beliefs = replay(ingestor.buckets(), spec, Trust(spec), PRIOR, upto, grey=True)
     rows = []
     for b in beliefs:
-        sources = sorted({ev.source_id for ev in per_minute.get(b.minute, [])
-                          if ev.channel in PASSIVE or ev.kind == "reply"})
-        rows.append({
-            "episode_id": events[0].episode_id,
-            "minute": b.minute,
-            "p": {h: round(v, 4) for h, v in b.p.items()},
-            "eff_n": {k: round(v, 3) for k, v in b.eff_n.items()},
-            "coverage": b.coverage,
-            "trust": {s: round(trust.mean(s), 4) for s in sources},
-            "synthetic": True,
-        })
-        rows.append({
-            "episode_id": events[0].episode_id,
-            "minute": b.minute,
-            "action": decide.stub_action(b.minute),
-            "candidate": decide.stub_action(b.minute),
-            "changed": False,
-            "minutes_in_action": b.minute + 1,
-            "expected_cost": None,
-            "ask": None,
-            "reason": b.reasons,
-            "foresight": [],
-            "lam": lam,
-            "ask_enabled": ask_enabled,
-            "stub": True,
-            "synthetic": True,
-        })
+        action = "ALERT" if b.p["C"] >= GREY_ALERT_LINE else "WATCH"
+        rows.append({"episode_id": events[0].episode_id, "minute": b.minute,
+                     "p": {h: round(b.p[h], 4) for h in HYPS}, "eff_n": {k: round(v, 3) for k, v in b.eff_n.items()},
+                     "coverage": b.coverage, "trust": {}, "synthetic": True})
+        rows.append({"episode_id": events[0].episode_id, "minute": b.minute, "action": action, "candidate": action,
+                     "changed": False, "ask": None, "expected_cost": None, "reason": b.reasons, "foresight": [],
+                     "lam": lam, "ask_enabled": ask_enabled, "grey": True, "synthetic": True})
+    return rows
+
+
+def run_episode(jsonl_path: str, lam: float = 1.0, ask_enabled: bool = True, grey: bool = False,
+                episode_id: str | None = None, responder=None) -> list[dict]:
+    # One belief row and one decision row per closed minute (MAIN §8.2 shapes).
+    # responder: callable(episode_id, question_id, asked_at_s) -> {"answer", "responder_id", "delay_s"}.
+    # The engine has no access to ground truth; the caller passes any responder in. With responder=None, ASKs are logged but not answered.
+    events = _read_events(jsonl_path, episode_id)
+    if not events:
+        return []
+    if grey:
+        return _grey_rows(events, lam, ask_enabled)
+    belief_rows, decision_rows, _ = run_live(events, lam=lam, ask_enabled=ask_enabled, responder=responder)
+    rows = []
+    for b, d in zip(belief_rows, decision_rows):
+        rows.append(b)
+        rows.append(d)
     return rows
 
 

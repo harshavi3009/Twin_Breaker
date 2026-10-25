@@ -1,0 +1,41 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>Twin-Breaker (SYNTHETIC)</title>
+  <style>
+    body { font-family: sans-serif; margin: 0; }
+    #banner { background: #fff3cd; color: #664d03; padding: 8px 16px; font-weight: bold; }
+    main { padding: 16px; }
+  </style>
+</head>
+<body>
+  <div id="banner">SYNTHETIC. Scale inspired by a published 2005 Mumbai rainfall figure (NIDM). Not real telemetry. Fictional event at a real location.</div>
+  <main>
+    <p>Server: <span id="health">checking...</span></p>
+    <p>Chart.js: <span id="chart">checking...</span></p>
+    <h2>Episodes</h2>
+    <ul id="episodes"></ul>
+  </main>
+  <script src="/vendor/chart.umd.min.js"></script>
+  <script>
+    document.getElementById("chart").textContent = typeof Chart === "undefined" ? "NOT LOADED" : "loaded " + Chart.version;
+
+    fetch("/api/health")
+      .then(r => r.json())
+      .then(h => { document.getElementById("health").textContent = h.ok ? "ok (" + h.mode + ")" : "not ok"; })
+      .catch(() => { document.getElementById("health").textContent = "unreachable"; });
+
+    fetch("/api/episodes")
+      .then(r => r.json())
+      .then(list => {
+        const ul = document.getElementById("episodes");
+        list.forEach(e => {
+          const li = document.createElement("li");
+          li.textContent = e.episode_id + " (pair " + e.pair + ", twin " + e.role + ")";
+          ul.appendChild(li);
+        });
+      });
+  </script>
+</body>
+</html>

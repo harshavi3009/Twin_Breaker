@@ -4,6 +4,7 @@ from pathlib import Path
 
 from generator.latent import make_latent
 from generator.passive import minute_events
+from generator.passive_more import more_events
 
 
 def parse_seeds(text: str) -> list[int]:
@@ -28,6 +29,7 @@ def generate(world: str, split: str, seed: int, episode: str, out_dir: str) -> d
     events: list[dict] = []
     for m in range(spec['episode_minutes']):
         events.extend(minute_events(episode, seed, m, latent, spec))
+        events.extend(more_events(episode, seed, m, latent, spec))
     events.sort(key=lambda e: (e['event_time_s'], e['event_id']))
     out = Path(out_dir)
     out.mkdir(parents=True, exist_ok=True)

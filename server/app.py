@@ -1,7 +1,8 @@
 import json
 import os
+import re
 from collections import defaultdict
-from dataclasses import asdict
+from dataclasses import asdict, replace
 from typing import Literal
 
 from fastapi import FastAPI, HTTPException
@@ -9,10 +10,10 @@ from fastapi.responses import FileResponse
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel
 
-from engine.belief import Trust, replay
-from engine.decide import ACTIONS
+from engine.belief import PASSIVE, Trust, bin_index, replay, silent_gateways
+from engine.decide import ACTIONS, Question, voi
 from engine.ingest import Ingestor, new_clusters_by_minute, parse_line
-from engine.live import REGISTERED_RESPONDERS, load_spec, run_live
+from engine.live import REGISTERED_RESPONDERS, RESPONDER_ID, closure_instant, load_spec, run_live
 from engine.types import Event
 # The server wires the responder into the engine as a function (MAIN §8.4); the engine itself stays free of these imports.
 from generator.responder import reply as sealed_reply
@@ -25,6 +26,9 @@ RESULTS = os.path.join(ROOT, "results", "eval_summary.json")  # MAIN §8.4 contr
 PRIOR = {h: 0.25 for h in ("N", "S", "I", "C")}
 CUTOUT_LEN_S = 240
 CUTOUT_OBS_EVERY_S = 30
+MOCK_B_SOURCE = "MOCK: no B stream on this machine, so B repeats A's passive events"
+GATEWAY_STATES = ("calm", "elevated", "high")  # engine drain bins: below lo, below hi, at or above hi
+TWIN_B = re.compile(r"^(P\d)B-")
 
 app = FastAPI(title="Twin-Breaker (SYNTHETIC)")
 app.mount("/vendor", StaticFiles(directory=os.path.join(WEB_DIR, "vendor")), name="vendor")
@@ -36,26 +40,111 @@ class InjectRequest(BaseModel):
     at_s: int = 300
 
 
-def _responder_for(episode_id: str):
+def _truth_path(episode_id: str) -> str:
+    return os.path.join(ROOT, "generator", "sealed", f"{episode_id}.truth.json")
+
+
+def _twin_a_id(episode_id: str) -> str:
+    return TWIN_B.sub(r"\1A-", episode_id)
+
+
+def _opposite_reply(twin_a: str):
+    # MOCK B's marshal answers the opposite of twin A's sealed answer, so the two twins split at the reply
+    def reply(episode_id: str, question_id: str, asked_at_s: int) -> dict:
+        answer = sealed_reply(twin_a, question_id, asked_at_s)
+        return {**answer, "answer": "no" if answer["answer"] == "yes" else "yes"}
+    return reply
+
+
+def _responder_for(episode_id: str, source: str):
     # The responder needs the episode's sealed truth file. Without it (fresh clone), ASKs are logged but unanswered.
-    truth = os.path.join(ROOT, "generator", "sealed", f"{episode_id}.truth.json")
-    return sealed_reply if os.path.exists(truth) else None
+    if source == MOCK_B_SOURCE:
+        twin_a = _twin_a_id(episode_id)
+        return _opposite_reply(twin_a) if os.path.exists(_truth_path(twin_a)) else None
+    return sealed_reply if os.path.exists(_truth_path(episode_id)) else None
+
+
+def _read_stream(path: str, episode_id: str) -> list[Event]:
+    with open(path, encoding="utf-8") as f:
+        events = [parse_line(line) for line in f.read().splitlines() if line.strip()]
+    return [ev for ev in events if ev.episode_id == episode_id]
 
 
 def _episode_events(episode_id: str) -> tuple[list, str]:
     stream = os.path.join(ROOT, "data", "streams", f"{episode_id}.jsonl")
     if os.path.exists(stream):
-        path, source = stream, "stream"
-    else:
-        path, source = FIXTURE, "MOCK fixture"
-    with open(path, encoding="utf-8") as f:
-        events = [parse_line(line) for line in f.read().splitlines() if line.strip()]
-    return [ev for ev in events if ev.episode_id == episode_id], source
+        return _read_stream(stream, episode_id), "stream"
+    # Streams are gitignored. The fixture holds only P1A-s0007, so a missing B stream used to come back empty.
+    twin_a = _twin_a_id(episode_id)
+    if twin_a != episode_id:
+        a_events, _ = _episode_events(twin_a)
+        if a_events:
+            # Same event times as A, so B matches A's passive events until the ASK reply
+            return [replace(ev, episode_id=episode_id, event_id=f"mock-{ev.event_id}") for ev in a_events], MOCK_B_SOURCE
+    return _read_stream(FIXTURE, episode_id), "MOCK fixture"
+
+
+def _config(name: str):
+    with open(os.path.join(ROOT, "engine", "config", name), encoding="utf-8") as f:
+        return json.load(f)
+
+
+def _minute_stats(accepted: list[Event], arrivals: list[Event], belief_rows: list[dict], spec: dict,
+                  lam: float) -> list[dict]:
+    # Same rules the engine applies at each closure: an event counts only if it arrived before that minute closed.
+    # Arrivals come in arrival order, so a repeated event_id is a duplicate the ingest dropped.
+    minutes = len(belief_rows)
+    cost = _config("cost.json")
+    questions = [Question(q["qid"], q["text"], q["p_yes"]) for q in _config("questions.json")]
+    text_of = {q.qid: q.text for q in questions}
+    # The engine never updates trust during a live run (end_episode is not called), so one value serves every minute
+    trust_resp = Trust(spec).mean(RESPONDER_ID)
+    seen: set[str] = set()
+    duplicates: dict[int, int] = defaultdict(int)
+    events_in: dict[int, int] = defaultdict(int)
+    for ev in arrivals:
+        if ev.event_id in seen:
+            duplicates[ev.received_time_s // 60] += 1
+        seen.add(ev.event_id)
+        if ev.kind != "reply":
+            events_in[ev.received_time_s // 60] += 1
+    clusters = new_clusters_by_minute([ev for ev in accepted if ev.channel == "citizen"])
+    gateways = sorted({ev.gateway_id for ev in accepted if ev.channel == "drain"})
+
+    out = []
+    for m in range(minutes):
+        known: dict[int, list[Event]] = defaultdict(list)
+        for ev in accepted:
+            if ev.received_time_s <= closure_instant(m):
+                known[ev.event_time_s // 60].append(ev)
+        first_minute: dict[str, int] = {}
+        for t in sorted(known):
+            for ev in known[t]:
+                if ev.gateway_id is not None:
+                    first_minute.setdefault(ev.gateway_id, t)
+        silent = silent_gateways(first_minute, known, m)
+        window = [ev for t in (m - 2, m - 1, m) for ev in known.get(t, [])]
+        state = {}
+        for gw in gateways:
+            if gw in silent:
+                state[gw] = "UNKNOWN"
+                continue
+            bins = [bin_index("drain", ev.value, spec["bins"]) for ev in window
+                    if ev.channel == "drain" and ev.gateway_id == gw]
+            state[gw] = GATEWAY_STATES[max(bins)] if bins else "no reading"
+        p = belief_rows[m]["p"]
+        best = max(((voi(p, q, lam, cost, trust_resp), q.qid) for q in questions), key=lambda x: x[0])
+        out.append({"events_in": events_in.get(m, 0), "duplicates_dropped": duplicates.get(m, 0),
+                    "clusters_new": clusters.get(m, 0), "silent_gateways": silent, "gateway_state": state,
+                    "corroborating_channels": sorted({ev.channel for ev in window if ev.channel in PASSIVE
+                                                      and bin_index(ev.channel, ev.value, spec["bins"]) >= 1}),
+                    "voi_best": round(best[0], 3), "voi_question": best[1], "voi_text": text_of[best[1]], "ask_threshold": spec["ask_threshold"]})
+    return out
 
 
 def _payload(episode_id: str, events: list, lam: float, source: str, forget: bool = True,
              ask_enabled: bool = True) -> dict:
-    responder = _responder_for(episode_id) if ask_enabled else None
+    responder = _responder_for(episode_id, source) if ask_enabled else None
     belief_rows, decision_rows, arrivals = run_live(events, lam=lam, ask_enabled=ask_enabled,
                                                     responder=responder, forget=forget)
 
@@ -65,6 +154,8 @@ def _payload(episode_id: str, events: list, lam: float, source: str, forget: boo
     upto = ingestor.closed_upto(max(ev.received_time_s for ev in arrivals))
     spec = load_spec()
     grey = replay(ingestor.buckets(), spec, Trust(spec), PRIOR, upto, grey=True)
+    accepted = [ev for evs in ingestor.buckets().values() for ev in evs]
+    stats = _minute_stats(accepted, arrivals, belief_rows, spec, lam)
 
     replies: dict[int, list] = defaultdict(list)
     for ev in arrivals:
@@ -73,8 +164,9 @@ def _payload(episode_id: str, events: list, lam: float, source: str, forget: boo
                                                       "received_time_s": ev.received_time_s})
 
     minutes = [{"minute": b["minute"], "belief": b, "decision": d,
-                "grey": {"p": {h: round(g.p[h], 4) for h in g.p}}, "replies": replies.get(b["minute"], [])}
-               for b, d, g in zip(belief_rows, decision_rows, grey)]
+                "grey": {"p": {h: round(g.p[h], 4) for h in g.p}}, "replies": replies.get(b["minute"], []),
+                "stats": s}
+               for b, d, g, s in zip(belief_rows, decision_rows, grey, stats)]
     return {"episode_id": episode_id, "lam": lam, "minutes": minutes, "synthetic": True, "source": source}
 
 
@@ -182,7 +274,7 @@ def episode(episode_id: str, lam: float = 1.0) -> dict:
     events, source = _episode_events(episode_id)
     if not events:
         return {"episode_id": episode_id, "lam": lam, "minutes": [], "synthetic": True,
-                "source": "no data for this episode"}
+                "source": f"no data for {episode_id}: data/streams/{episode_id}.jsonl not found"}
     return _payload(episode_id, events, lam, source)
 
 

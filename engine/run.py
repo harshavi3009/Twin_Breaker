@@ -46,8 +46,7 @@ def run_episode(jsonl_path: str, lam: float = 1.0, ask_enabled: bool = True, gre
                 episode_id: str | None = None, responder=None) -> list[dict]:
     # One belief row and one decision row per closed minute (MAIN §8.2 shapes).
     # responder: callable(episode_id, question_id, asked_at_s) -> {"answer", "responder_id", "delay_s"}.
-    # The engine never imports the generator; the caller passes the sealed responder for ASK runs.
-    # With responder=None, ASKs are logged but not answered.
+    # The engine has no access to ground truth; the caller passes any responder in. With responder=None, ASKs are logged but not answered.
     events = _read_events(jsonl_path, episode_id)
     if not events:
         return []

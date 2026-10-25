@@ -121,7 +121,7 @@ class LiveEpisode:
 def run_live(events: list[Event], lam: float = 1.0, ask_enabled: bool = True,
              responder=None, forget: bool = True) -> tuple[list[dict], list[dict], list[Event]]:
     # Replays the episode as a clock: arrivals and minute closures happen in time order.
-    # responder is injected by the caller (the server passes the sealed responder); with None, ASKs are logged but unanswered.
+    # responder is injected by the caller (the server passes its responder in); with None, ASKs are logged but unanswered.
     # Returns belief rows, decision rows, and every event that arrived (including replies).
     if not events:
         return [], [], []

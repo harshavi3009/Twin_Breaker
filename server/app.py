@@ -14,7 +14,7 @@ from engine.decide import ACTIONS
 from engine.ingest import Ingestor, new_clusters_by_minute, parse_line
 from engine.live import REGISTERED_RESPONDERS, load_spec, run_live
 from engine.types import Event
-# The server calls the sealed responder as a function (MAIN §8.4). The engine itself never imports generator/.
+# The server wires the responder into the engine as a function (MAIN §8.4); the engine itself stays free of these imports.
 from generator.responder import reply as sealed_reply
 from generator.scenarios import apply_silence, build_injection
 
@@ -37,7 +37,7 @@ class InjectRequest(BaseModel):
 
 
 def _responder_for(episode_id: str):
-    # The sealed responder needs the episode's sealed truth. Without it (fresh clone), ASKs are logged but unanswered.
+    # The responder needs the episode's sealed truth file. Without it (fresh clone), ASKs are logged but unanswered.
     truth = os.path.join(ROOT, "generator", "sealed", f"{episode_id}.truth.json")
     return sealed_reply if os.path.exists(truth) else None
 

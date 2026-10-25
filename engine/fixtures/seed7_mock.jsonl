@@ -1,0 +1,12 @@
+{"event_id":"ev-P1A-000101","episode_id":"P1A-s0007","kind":"observation","channel":"drain","source_id":"drain-G2-031","gateway_id":"G2","event_time_s":60,"received_time_s":90,"value":0.20}
+{"event_id":"ev-P1A-000102","episode_id":"P1A-s0007","kind":"observation","channel":"drain","source_id":"drain-G2-031","gateway_id":"G2","event_time_s":120,"received_time_s":150,"value":0.28}
+{"event_id":"ev-P1A-000103","episode_id":"P1A-s0007","kind":"observation","channel":"drain","source_id":"drain-G2-031","gateway_id":"G2","event_time_s":180,"received_time_s":210,"value":0.36}
+{"event_id":"ev-P1A-000104","episode_id":"P1A-s0007","kind":"observation","channel":"drain","source_id":"drain-G2-031","gateway_id":"G2","event_time_s":240,"received_time_s":270,"value":0.45}
+{"event_id":"ev-P1A-000105","episode_id":"P1A-s0007","kind":"observation","channel":"drain","source_id":"drain-G2-031","gateway_id":"G2","event_time_s":300,"received_time_s":330,"value":0.55}
+{"event_id":"ev-P1A-000106","episode_id":"P1A-s0007","kind":"observation","channel":"drain","source_id":"drain-G2-031","gateway_id":"G2","event_time_s":360,"received_time_s":390,"value":0.66}
+{"event_id":"ev-P1A-000107","episode_id":"P1A-s0007","kind":"observation","channel":"drain","source_id":"drain-G2-031","gateway_id":"G2","event_time_s":420,"received_time_s":450,"value":0.76}
+{"event_id":"ev-P1A-000108","episode_id":"P1A-s0007","kind":"observation","channel":"drain","source_id":"drain-G2-031","gateway_id":"G2","event_time_s":480,"received_time_s":510,"value":0.85}
+{"event_id":"ev-P1A-000109","episode_id":"P1A-s0007","kind":"observation","channel":"drain","source_id":"drain-G2-031","gateway_id":"G2","event_time_s":540,"received_time_s":570,"value":0.90}
+{"event_id":"ev-P1A-000140","episode_id":"P1A-s0007","kind":"citizen","channel":"citizen","source_id":"phone-88ac","text":"Ambazari lake wall breached","text_hash":"efd385fcf736448db51281a7c5358c8c7e5c34c0","event_time_s":300,"received_time_s":305,"value":null}
+{"event_id":"ev-P1A-000181","episode_id":"P1A-s0007","kind":"reply","channel":"reply","source_id":"marshal-W9-01","question_id":"Q1","answer":"yes","event_time_s":365,"received_time_s":365,"value":null}
+{"event_id":"ev-P1A-000190","episode_id":"P1A-s0007","kind":"retraction","source_id":"drain-G2-031","retracts":"ev-P1A-000104","event_time_s":380,"received_time_s":381,"value":null}

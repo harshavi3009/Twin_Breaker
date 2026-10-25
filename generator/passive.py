@@ -63,6 +63,8 @@ def minute_events(episode: str, seed: int, minute: int, latent: Latent,
         gw = gws[i % len(gws)]
         source = f"drain-{gw}-{i+1:03d}"
         value = round(min(1.0, max(0.0, world["drain"]["base_fill"] + world["drain"]["per_cm_fill"] * d_val + nz["drain_scale"] * z[i, 0])), 3)
+        if latent.stuck_drain_from is not None and minute >= latent.stuck_drain_from:
+            value = round(world["sensor_fail"]["stuck_fill"], 3)
         delay = min(90, int(abs(z[i, 1]) * nz["delay_scale_s"]))
         events.append(_make_dict(episode, seed, "observation", "drain",
                                  source, gw, ets, value, received=ets + delay))

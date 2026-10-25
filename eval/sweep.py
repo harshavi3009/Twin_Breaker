@@ -38,8 +38,15 @@ def main(argv: list[str] | None = None) -> int:
             else:
                 from engine.run import run_episode
                 raw = run_episode(f'data/streams/{ep}.jsonl', lam=1.0, ask_enabled=True, grey=False)
-                minutes = [{'minute': r['minute'], 'p': r['p'], 'action': r['action']}
-                           for r in raw if 'action' in r]
+                # run_episode emits a belief row (has 'p') and a decision row (has 'action') per minute; join them
+                by_minute: dict[int, dict] = {}
+                for r in raw:
+                    slot = by_minute.setdefault(r['minute'], {'minute': r['minute']})
+                    if 'p' in r:
+                        slot['p'] = r['p']
+                    if 'action' in r:
+                        slot['action'] = r['action']
+                minutes = [by_minute[m] for m in sorted(by_minute) if 'p' in by_minute[m] and 'action' in by_minute[m]]
 
             records.append(episode_record(ep, truth, minutes))
 

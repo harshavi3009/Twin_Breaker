@@ -28,3 +28,16 @@ Switch trigger: the 14:00 go/no-go fails.
 - Prior shift
 - MISSPEC
 - Live server
+
+## Setup log
+
+Stream sizes, measured on Aditya's generated DEV files (`python -m generator.gen --world B --split dev --seeds 1-10`). Setup Step 8 estimated about 400,000 bytes per file; the measured size is about twice that.
+
+| File | Bytes |
+|---|---|
+| `P1A-s0007.jsonl` | 829,732 |
+| `P1B-s0007.jsonl` | 832,717 |
+| `N-s0007.jsonl` | 823,730 |
+| `C-s0007.jsonl` | 824,466 |
+
+Average over all 40 DEV files (seeds 1–10, 4 episodes each): 825,493 bytes, about 33 MB in total.

@@ -5,18 +5,24 @@ import os
 from engine.belief import HYPS, PASSIVE, Trust, bin_index, replay
 from engine.decide import Question, decide
 from engine.ingest import GRACE_S, Ingestor
-from engine.run import REGISTERED_RESPONDERS, load_spec
 from engine.types import Event
-from server.responder_mock import reply as mock_reply
 
-CONFIG_DIR = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "engine", "config")
-PRIOR = {h: 1.0 / len(HYPS) for h in HYPS}
+HERE = os.path.dirname(os.path.abspath(__file__))
+CONFIG_DIR = os.path.join(HERE, "config")
+REGISTERED_RESPONDERS = {"marshal-W9-01"}
 RESPONDER_ID = "marshal-W9-01"
+PRIOR = {h: 1.0 / len(HYPS) for h in HYPS}
 
 
 def _load(name: str):
     with open(os.path.join(CONFIG_DIR, name), encoding="utf-8") as f:
         return json.load(f)
+
+
+def load_spec() -> dict:
+    spec = _load("belief_spec.json")
+    spec["questions"] = {q["qid"]: q["p_yes"] for q in _load("questions.json")}
+    return spec
 
 
 def closure_instant(minute: int) -> int:
@@ -35,15 +41,31 @@ def corroborated(buckets: dict, spec: dict, m: int) -> bool:
     return False
 
 
+def foresight_top1(buckets: dict, spec: dict, lags: dict, m: int) -> list[dict]:
+    # Top-1 only: elevated rain this minute forecasts drain >= 0.85 in the lag window.
+    # Lags come from DEV data (engine/config/lags.json); no probability is claimed.
+    rule = lags["rain>drain"]
+    rain_now = [ev for t, evs in buckets.items() if t // 60 == m for ev in evs if ev.channel == "rain"]
+    if not any(bin_index("rain", ev.value, spec["bins"]) >= 1 for ev in rain_now):
+        return []
+    drain_now = [ev.value for t, evs in buckets.items() if t // 60 == m for ev in evs if ev.channel == "drain"]
+    if drain_now and max(drain_now) >= 0.85:
+        return []
+    lo, hi = rule["window_min"]
+    return [{"event": "drain>=0.85", "window_min": [m + lo, m + hi], "basis": rule["method"]}]
+
+
 class LiveEpisode:
-    def __init__(self, episode_id: str, lam: float, ask_enabled: bool, responder) -> None:
+    def __init__(self, episode_id: str, lam: float, ask_enabled: bool, responder, forget: bool = True) -> None:
         self.episode_id = episode_id
         self.lam = lam
         self.ask_enabled = ask_enabled
         self.responder = responder
+        self.forget = forget
         self.spec = load_spec()
         self.cost = _load("cost.json")
         self.hyst = _load("hyst.json")
+        self.lags = _load("lags.json")
         self.questions = [Question(q["qid"], q["text"], q["p_yes"]) for q in _load("questions.json")]
         self.ingestor = Ingestor(REGISTERED_RESPONDERS)
         self.trust = Trust(self.spec)
@@ -61,19 +83,25 @@ class LiveEpisode:
         self.closed += 1
         m = self.closed
         buckets = self.ingestor.buckets()
-        b = replay(buckets, self.spec, self.trust, PRIOR, m)[-1]
+        b = replay(buckets, self.spec, self.trust, PRIOR, m, forget=self.forget)[-1]
         d = decide(b.p, self.prev_action, self.minutes_in_action, m, self.lam, self.cost, self.hyst,
                    self.questions, self.asks, self.last_ask_min, self.trust.mean(RESPONDER_ID),
                    corroborated(buckets, self.spec, m), ask_threshold=self.spec["ask_threshold"])
 
         self.minutes_in_action = 1 if d.action != self.prev_action else self.minutes_in_action + 1
         self.prev_action = d.action
+        sources = sorted({ev.source_id for t, evs in buckets.items() if t // 60 == m for ev in evs
+                          if ev.channel in PASSIVE or ev.kind == "reply"})
         self.belief_rows.append({"episode_id": self.episode_id, "minute": m,
-                                 "p": {h: round(b.p[h], 4) for h in HYPS}, "coverage": b.coverage})
+                                 "p": {h: round(b.p[h], 4) for h in HYPS}, "eff_n": {k: round(v, 3) for k, v in b.eff_n.items()},
+                                 "coverage": b.coverage, "trust": {s: round(self.trust.mean(s), 4) for s in sources},
+                                 "synthetic": True})
         self.decision_rows.append({"episode_id": self.episode_id, "minute": m, "action": d.action,
                                    "candidate": d.candidate, "changed": d.changed, "ask": d.ask,
-                                   "expected_cost": {a: round(v, 3) for a, v in d.expected_cost.items()}})
-        if d.ask and self.ask_enabled:
+                                   "expected_cost": {a: round(v, 3) for a, v in d.expected_cost.items()},
+                                   "reason": b.reasons, "foresight": foresight_top1(buckets, self.spec, self.lags, m),
+                                   "lam": self.lam, "ask_enabled": self.ask_enabled, "synthetic": True})
+        if d.ask and self.ask_enabled and self.responder is not None:
             self._ask(m, d.ask)
 
     def _ask(self, m: int, ask: dict) -> None:
@@ -91,12 +119,13 @@ class LiveEpisode:
 
 
 def run_live(events: list[Event], lam: float = 1.0, ask_enabled: bool = True,
-             responder=mock_reply) -> tuple[list[dict], list[dict], list[Event]]:
+             responder=None, forget: bool = True) -> tuple[list[dict], list[dict], list[Event]]:
     # Replays the episode as a clock: arrivals and minute closures happen in time order.
+    # responder is injected by the caller (the server passes its responder in); with None, ASKs are logged but unanswered.
     # Returns belief rows, decision rows, and every event that arrived (including replies).
     if not events:
         return [], [], []
-    ep = LiveEpisode(events[0].episode_id, lam, ask_enabled, responder)
+    ep = LiveEpisode(events[0].episode_id, lam, ask_enabled, responder, forget)
     ep.heap = [(ev.received_time_s, ev.event_id, ev) for ev in events]
     heapq.heapify(ep.heap)
 

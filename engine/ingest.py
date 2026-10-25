@@ -1,5 +1,6 @@
 import dataclasses
 import json
+import re
 
 from engine.types import Event
 
@@ -17,6 +18,37 @@ KINDS = {
 }
 
 GRACE_S = 90
+CLUSTER_WINDOW_S = 120
+CLUSTER_JACCARD_MIN = 0.8
+
+
+def shingles(text: str) -> set[tuple[str, ...]]:
+    words = re.findall(r"[a-z0-9]+", text.lower())
+    if len(words) < 3:
+        return {tuple(words)}
+    return {tuple(words[i:i + 3]) for i in range(len(words) - 2)}
+
+
+def jaccard(a: set, b: set) -> float:
+    return len(a & b) / len(a | b) if a | b else 0.0
+
+
+def new_clusters_by_minute(citizen_events: list[Event]) -> dict[int, int]:
+    # Greedy, in time order: a report joins the first cluster it matches within the window
+    clusters: list[dict] = []
+    counts: dict[int, int] = {}
+    for ev in sorted(citizen_events, key=lambda e: (e.event_time_s, e.event_id)):
+        sh = shingles(ev.text)
+        for cluster in clusters:
+            if ev.event_time_s - cluster["last_s"] <= CLUSTER_WINDOW_S and \
+                    jaccard(sh, cluster["shingles"]) >= CLUSTER_JACCARD_MIN:
+                cluster["last_s"] = ev.event_time_s
+                break
+        else:
+            clusters.append({"shingles": sh, "last_s": ev.event_time_s})
+            minute = ev.event_time_s // 60
+            counts[minute] = counts.get(minute, 0) + 1
+    return counts
 
 
 def parse_line(line: str) -> Event:

@@ -1,0 +1,1 @@
+{"c":{"WATCH":0,"PREPARE":2,"ALERT":5,"ESCALATE":8},"m":{"WATCH":0,"PREPARE":0.3,"ALERT":0.6,"ESCALATE":0.8},"d":{"N":0,"S":0,"I":15,"C":100},"f":{"ALERT":10,"ESCALATE":20},"lam_default":1.0}

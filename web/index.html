@@ -2,40 +2,514 @@
 <html lang="en">
 <head>
   <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="color-scheme" content="dark">
   <title>Twin-Breaker (SYNTHETIC)</title>
   <style>
-    body { font-family: sans-serif; margin: 0; }
-    #banner { background: #fff3cd; color: #664d03; padding: 8px 16px; font-weight: bold; }
-    main { padding: 16px; }
+    :root {
+      --bg: #0b1020;
+      --surface: #111a2e;
+      --surface-2: #17213a;
+      --line: #22304d;
+      --text: #e5e9f2;
+      --muted: #8b97ad;
+      --accent: #38bdf8;
+      --accent-ink: #04111f;
+      --warn-bg: #3a2c0c;
+      --warn-text: #fcd34d;
+      --bad: #f87171;
+      --bad-bg: #3b1518;
+      --good: #34d399;
+      --ask-bg: #0c2a40;
+    }
+
+    * { box-sizing: border-box; }
+
+    body {
+      font-family: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+      margin: 0;
+      min-height: 100vh;
+      background: radial-gradient(1200px 600px at 10% -10%, #15234a 0%, transparent 60%), var(--bg);
+      color: var(--text);
+      line-height: 1.45;
+    }
+
+    #banner {
+      background: var(--warn-bg);
+      color: var(--warn-text);
+      border-bottom: 1px solid #5c4513;
+      padding: 8px 20px;
+      font-size: 13px;
+      font-weight: 600;
+      letter-spacing: 0.01em;
+    }
+
+    header.top {
+      padding: 20px 24px 8px;
+      max-width: 1200px;
+      margin: 0 auto;
+    }
+    header.top h1 {
+      margin: 0;
+      font-size: 24px;
+      font-weight: 700;
+      letter-spacing: -0.01em;
+    }
+    header.top p {
+      margin: 4px 0 0;
+      color: var(--muted);
+      font-size: 14px;
+    }
+
+    main {
+      padding: 12px 24px 40px;
+      max-width: 1200px;
+      margin: 0 auto;
+    }
+
+    h3 {
+      font-size: 13px;
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+      color: var(--muted);
+      font-weight: 600;
+      margin: 24px 0 10px;
+    }
+
+    /* ---------- Controls bar ---------- */
+    #controls {
+      display: flex;
+      gap: 12px;
+      align-items: center;
+      flex-wrap: wrap;
+      background: var(--surface);
+      border: 1px solid var(--line);
+      border-radius: 10px;
+      padding: 10px 14px;
+      margin-bottom: 16px;
+    }
+    #controls label {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      color: var(--muted);
+      font-size: 14px;
+    }
+    #controls > span {
+      color: var(--muted);
+      font-size: 14px;
+    }
+    #controls strong {
+      color: var(--text);
+      font-variant-numeric: tabular-nums;
+    }
+    #status {
+      margin-left: auto;
+      color: var(--muted);
+      font-size: 13px;
+      font-variant-numeric: tabular-nums;
+    }
+
+    select, button {
+      font: inherit;
+      font-size: 14px;
+      color: var(--text);
+      background: var(--surface-2);
+      border: 1px solid var(--line);
+      border-radius: 6px;
+      padding: 6px 12px;
+    }
+    select { cursor: pointer; }
+    button {
+      cursor: pointer;
+      transition: background 0.15s, border-color 0.15s, transform 0.05s;
+    }
+    button:hover { background: #1d2a48; border-color: #2e3f66; }
+    button:active { transform: translateY(1px); }
+    button:focus-visible, select:focus-visible, #minutes li:focus-visible {
+      outline: 2px solid var(--accent);
+      outline-offset: 2px;
+    }
+    #play {
+      background: var(--accent);
+      border-color: var(--accent);
+      color: var(--accent-ink);
+      font-weight: 600;
+    }
+    #play:hover { background: #7dd3fc; border-color: #7dd3fc; }
+
+    /* ---------- Twin panels ---------- */
+    #panels {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(420px, 1fr));
+      gap: 16px;
+    }
+    .panel {
+      background: var(--surface);
+      border: 1px solid var(--line);
+      border-radius: 12px;
+      padding: 16px 18px;
+      min-width: 0;
+    }
+    .panel h2 {
+      margin: 0 0 6px;
+      font-size: 17px;
+      font-weight: 650;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+    .panel > div {
+      font-size: 14px;
+      color: var(--muted);
+      margin-bottom: 8px;
+    }
+    .panel strong, .panel [data-role="naive-alert"] {
+      color: var(--text);
+    }
+
+    .badge {
+      background: var(--surface-2);
+      border: 1px solid var(--line);
+      color: var(--muted);
+      border-radius: 999px;
+      padding: 2px 9px;
+      font-size: 11px;
+      font-weight: 600;
+      letter-spacing: 0.02em;
+    }
+    .badge.mock {
+      background: var(--bad-bg);
+      border-color: #6b262c;
+      color: var(--bad);
+    }
+
+    canvas {
+      max-height: 180px;
+      margin: 6px 0 10px;
+    }
+
+    .ask {
+      background: var(--ask-bg);
+      border-left: 3px solid var(--accent);
+      border-radius: 6px;
+      color: #cfe9ff;
+      padding: 8px 10px;
+      margin: 10px 0;
+      font-size: 14px;
+      min-height: 1.5em;
+    }
+    .reasons {
+      font-size: 13px;
+      color: var(--muted);
+      min-height: 1.4em;
+    }
+    .foresight {
+      font-size: 12px;
+      color: #5d6880;
+      margin: 10px 0 0;
+      font-style: italic;
+    }
+
+    /* ---------- Minute strip ---------- */
+    #minutes {
+      list-style: none;
+      padding: 0;
+      margin: 0;
+      display: flex;
+      flex-wrap: wrap;
+      gap: 6px;
+    }
+    #minutes li {
+      min-width: 36px;
+      text-align: center;
+      border: 1px solid var(--line);
+      background: var(--surface);
+      color: var(--muted);
+      border-radius: 6px;
+      padding: 4px 8px;
+      font-size: 13px;
+      font-variant-numeric: tabular-nums;
+      cursor: pointer;
+      transition: background 0.15s, color 0.15s;
+    }
+    #minutes li:hover {
+      color: var(--text);
+      border-color: #2e3f66;
+    }
+    #minutes li.selected {
+      background: var(--accent);
+      border-color: var(--accent);
+      color: var(--accent-ink);
+      font-weight: 700;
+    }
+
+    /* ---------- Red team ---------- */
+    #redteam {
+      background: var(--surface);
+      border: 1px solid var(--line);
+      border-radius: 12px;
+      padding: 16px 18px;
+      margin-top: 24px;
+    }
+    #redteam h3 {
+      margin: 0 0 12px;
+    }
+    #redteam button { margin: 0 8px 8px 0; }
+    #redteam .result {
+      margin-top: 10px;
+      font-size: 14px;
+      color: var(--text);
+      background: var(--surface-2);
+      border-radius: 8px;
+      padding: 10px 12px;
+    }
+    #redteam .result > div { margin-bottom: 4px; }
+    #redteam .pass {
+      color: var(--good);
+      font-weight: 700;
+    }
+    #redteam .fail {
+      color: var(--bad);
+      font-weight: 700;
+    }
+    #redteam .note {
+      font-size: 12px;
+      color: var(--warn-text);
+      margin-top: 10px;
+    }
+
+    @media (max-width: 720px) {
+      header.top, main { padding-left: 14px; padding-right: 14px; }
+      #panels { grid-template-columns: 1fr; }
+      #status { margin-left: 0; width: 100%; }
+    }
   </style>
 </head>
 <body>
   <div id="banner">SYNTHETIC. Scale inspired by a published 2005 Mumbai rainfall figure (NIDM). Not real telemetry. Fictional event at a real location.</div>
+  <header class="top">
+    <h1>Twin-Breaker</h1>
+    <p>Crisis-belief engine for a city duty officer. Compares two look-alike episodes minute by minute.</p>
+  </header>
   <main>
-    <p>Server: <span id="health">checking...</span></p>
-    <p>Chart.js: <span id="chart">checking...</span></p>
-    <h2>Episodes</h2>
-    <ul id="episodes"></ul>
+    <div id="controls">
+      <label>λ
+        <select id="lam">
+          <option value="0.5">0.5</option>
+          <option value="1" selected>1</option>
+          <option value="2">2</option>
+          <option value="4">4</option>
+        </select>
+      </label>
+      <button id="play">Play</button>
+      <button id="pause">Pause</button>
+      <button id="reset">Reset</button>
+      <span>Minute: <strong id="clock">–</strong></span>
+      <span id="status">Loading…</span>
+    </div>
+
+    <div id="panels">
+      <section class="panel" id="panel-A">
+        <h2>Twin A <span class="badge" data-role="source"></span></h2>
+        <div>Action: <strong data-role="action">–</strong> · action flips: <span data-role="flips">0</span></div>
+        <canvas data-role="bars"></canvas>
+        <div>Naive grey line: P(C) <span data-role="naive-pc">–</span>, <span data-role="naive-alert">–</span> · naive flips: <span data-role="naive-flips">0</span></div>
+        <canvas data-role="trend"></canvas>
+        <div class="ask" data-role="ask"></div>
+        <div class="reasons" data-role="reasons"></div>
+        <p class="foresight">Foresight (lag-table based): not available until the lag table is frozen.</p>
+      </section>
+
+      <section class="panel" id="panel-B">
+        <h2>Twin B <span class="badge" data-role="source"></span></h2>
+        <div>Action: <strong data-role="action">–</strong> · action flips: <span data-role="flips">0</span></div>
+        <canvas data-role="bars"></canvas>
+        <div>Naive grey line: P(C) <span data-role="naive-pc">–</span>, <span data-role="naive-alert">–</span> · naive flips: <span data-role="naive-flips">0</span></div>
+        <canvas data-role="trend"></canvas>
+        <div class="ask" data-role="ask"></div>
+        <div class="reasons" data-role="reasons"></div>
+        <p class="foresight">Foresight (lag-table based): not available until the lag table is frozen.</p>
+      </section>
+    </div>
+
+    <h3>Click a minute for its reason log</h3>
+    <ol id="minutes"></ol>
+
+    <div id="redteam">
+      <h3>Red team (Twin A, injected at minute 5)</h3>
+      <button data-scenario="rumour_wave">Rumour wave</button>
+      <button data-scenario="gateway_outage">Gateway outage</button>
+      <button data-scenario="camera_cutout">Camera cut-out</button>
+      <div class="result" id="redteam-result">Pick an attack.</div>
+      <div class="note">Stand-in attacks built from plan section 4. Aditya's scenario files are not on the remote yet.</div>
+    </div>
   </main>
+
   <script src="/vendor/chart.umd.min.js"></script>
   <script>
-    document.getElementById("chart").textContent = typeof Chart === "undefined" ? "NOT LOADED" : "loaded " + Chart.version;
+    // Dark-theme defaults so axis labels and grid lines stay readable.
+    Chart.defaults.color = "#8b97ad";
+    Chart.defaults.borderColor = "#22304d";
+    Chart.defaults.font.family = "system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif";
 
-    fetch("/api/health")
-      .then(r => r.json())
-      .then(h => { document.getElementById("health").textContent = h.ok ? "ok (" + h.mode + ")" : "not ok"; })
-      .catch(() => { document.getElementById("health").textContent = "unreachable"; });
+    const PLAY_MS_PER_MINUTE = 4000;
+    const ALERT_LINE = 0.7;
+    const ROLES = ["A", "B"];
+    const panels = {};
+    let minuteIndex = 0;
+    let timer = null;
+    let maxMinutes = 0;
 
-    fetch("/api/episodes")
-      .then(r => r.json())
-      .then(list => {
-        const ul = document.getElementById("episodes");
-        list.forEach(e => {
-          const li = document.createElement("li");
-          li.textContent = e.episode_id + " (pair " + e.pair + ", twin " + e.role + ")";
-          ul.appendChild(li);
-        });
+    function el(role, name) { return document.querySelector(`#panel-${role} [data-role="${name}"]`); }
+
+    function makeCharts(role) {
+      const bars = new Chart(el(role, "bars"), {
+        type: "bar",
+        data: { labels: ["N", "S", "I", "C"], datasets: [{ label: "belief", data: [0, 0, 0, 0], backgroundColor: ["#60a5fa", "#a78bfa", "#fbbf24", "#f87171"] }] },
+        options: { animation: false, scales: { y: { min: 0, max: 1 } }, plugins: { legend: { display: false } } },
       });
+      const trend = new Chart(el(role, "trend"), {
+        type: "line",
+        data: { labels: [], datasets: [
+          { label: "ours P(C)", data: [], borderColor: "#38bdf8", backgroundColor: "#38bdf8" },
+          { label: "grey P(C)", data: [], borderColor: "#8b97ad", backgroundColor: "#8b97ad", borderDash: [4, 4] },
+        ] },
+        options: { animation: false, scales: { y: { min: 0, max: 1 } } },
+      });
+      return { bars, trend };
+    }
+
+    async function loadPanel(role, episodeId, lam) {
+      const res = await fetch(`/api/episodes/${episodeId}?lam=${lam}`);
+      const data = await res.json();
+      panels[role] = { episodeId, data, charts: panels[role] ? panels[role].charts : makeCharts(role) };
+      const badge = el(role, "source");
+      badge.textContent = data.source;
+      badge.classList.toggle("mock", data.source === "MOCK fixture");
+      maxMinutes = Math.max(maxMinutes, data.minutes.length);
+    }
+
+    function flipsUpTo(minutes, key, idx) {
+      let n = 0;
+      for (let i = 1; i <= idx; i++) if (key(minutes[i]) !== key(minutes[i - 1])) n++;
+      return n;
+    }
+
+    function renderPanel(role, idx) {
+      const panel = panels[role];
+      if (!panel) return;
+      const minutes = panel.data.minutes;
+      if (minutes.length === 0) {
+        el(role, "action").textContent = "no data for this twin";
+        return;
+      }
+      const i = Math.min(idx, minutes.length - 1);
+      const m = minutes[i];
+      const p = m.belief.p;
+      const naiveAlert = (x) => x.grey.p.C >= ALERT_LINE;
+
+      el(role, "action").textContent = m.decision.action;
+      el(role, "flips").textContent = flipsUpTo(minutes, (x) => x.decision.action, i);
+      panel.charts.bars.data.datasets[0].data = [p.N, p.S, p.I, p.C];
+      panel.charts.bars.update();
+
+      el(role, "naive-pc").textContent = m.grey.p.C.toFixed(3);
+      el(role, "naive-alert").textContent = naiveAlert(m) ? "ALERT (naive)" : "no alert (naive)";
+      el(role, "naive-flips").textContent = flipsUpTo(minutes, naiveAlert, i);
+
+      const labels = minutes.slice(0, i + 1).map((x) => x.minute);
+      panel.charts.trend.data.labels = labels;
+      panel.charts.trend.data.datasets[0].data = minutes.slice(0, i + 1).map((x) => x.belief.p.C);
+      panel.charts.trend.data.datasets[1].data = minutes.slice(0, i + 1).map((x) => x.grey.p.C);
+      panel.charts.trend.update();
+
+      const asked = minutes.slice(0, i + 1).filter((x) => x.decision.ask).map((x) => x.decision.ask);
+      const askBox = el(role, "ask");
+      askBox.textContent = m.decision.ask
+        ? `ASK at minute ${m.minute}: "${m.decision.ask.text}" (expected gain ${m.decision.ask.voi_net})`
+        : (asked.length ? `Last ask: "${asked[asked.length - 1].text}"` : "No question asked yet.");
+      const replies = minutes.slice(0, i + 1).flatMap((x) => x.replies);
+      if (replies.length) {
+        askBox.textContent += ` · reply: ${replies.map((r) => `${r.question_id} = ${r.answer}`).join(", ")}`;
+      }
+
+      el(role, "reasons").textContent = m.decision.reason.length
+        ? "Reasons: " + m.decision.reason.map((r) => `${r.text} (${r.bits >= 0 ? "+" : ""}${r.bits} bits)`).join("; ")
+        : "No reasons this minute.";
+    }
+
+    function renderAll(idx) {
+      minuteIndex = idx;
+      ROLES.forEach((role) => renderPanel(role, idx));
+      document.getElementById("clock").textContent = idx;
+      document.querySelectorAll("#minutes li").forEach((li, n) => li.classList.toggle("selected", n === idx));
+    }
+
+    function buildMinuteList() {
+      const list = document.getElementById("minutes");
+      list.innerHTML = "";
+      for (let n = 0; n < maxMinutes; n++) {
+        const li = document.createElement("li");
+        li.textContent = n;
+        li.addEventListener("click", () => renderAll(n));
+        list.appendChild(li);
+      }
+    }
+
+    async function loadAll() {
+      const lam = document.getElementById("lam").value;
+      const status = document.getElementById("status");
+      status.textContent = "Loading…";
+      stop();
+      maxMinutes = 0;
+      const episodes = await (await fetch("/api/episodes")).json();
+      for (const ep of episodes) await loadPanel(ep.role, ep.episode_id, lam);
+      buildMinuteList();
+      status.textContent = `λ = ${lam}`;
+      renderAll(0);
+    }
+
+    function play() {
+      if (timer) return;
+      timer = setInterval(() => {
+        if (minuteIndex >= maxMinutes - 1) return stop();
+        renderAll(minuteIndex + 1);
+      }, PLAY_MS_PER_MINUTE);
+    }
+
+    function stop() {
+      if (timer) clearInterval(timer);
+      timer = null;
+    }
+
+    async function runAttack(scenario) {
+      const out = document.getElementById("redteam-result");
+      out.textContent = "Running…";
+      const res = await fetch("/api/inject", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ episode_id: "P1A-s0007", scenario: scenario, at_s: 300 }),
+      });
+      if (!res.ok) { out.textContent = `Error ${res.status}`; return; }
+      const data = await res.json();
+      const checks = Object.entries(data.checks)
+        .filter(([k]) => k !== "pass" && k !== "rule")
+        .map(([k, v]) => `${k} = ${v}`).join(" · ");
+      out.innerHTML = `<div>${data.ui}</div>` +
+        `<div>${checks}</div>` +
+        `<div>Rule: ${data.checks.rule}</div>` +
+        `<div class="${data.checks.pass ? "pass" : "fail"}">${data.checks.pass ? "PASS" : "FAIL"}</div>`;
+    }
+
+    document.querySelectorAll("#redteam button").forEach((b) =>
+      b.addEventListener("click", () => runAttack(b.dataset.scenario)));
+
+    document.getElementById("play").addEventListener("click", play);
+    document.getElementById("pause").addEventListener("click", stop);
+    document.getElementById("reset").addEventListener("click", () => renderAll(0));
+    document.getElementById("lam").addEventListener("change", loadAll);
+    loadAll();
   </script>
 </body>
 </html>

@@ -18,7 +18,7 @@ from engine.types import Event
 # The server wires the responder into the engine as a function (MAIN §8.4); the engine itself stays free of these imports.
 from generator.responder import reply as sealed_reply
 from generator.scenarios import apply_silence, build_injection
-from server.demo import DEMO_ASK_MIN, DEMO_DIR, DEMO_LABEL, DEMO_SPEC, scripted_reply
+from server.demo import DEMO_ASK_MIN, DEMO_DIR, DEMO_END_MIN, DEMO_LABEL, DEMO_SPEC, scripted_reply
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 WEB_DIR = os.path.join(ROOT, "web")
@@ -165,6 +165,7 @@ def _payload(episode_id: str, events: list, lam: float, source: str, forget: boo
     accepted = [ev for evs in ingestor.buckets().values() for ev in evs]
     stats = _minute_stats(accepted, arrivals, belief_rows, spec, lam)
 
+    # A reply is bucketed by its arrival time, the same clock the belief uses (engine/belief.py replay)
     replies: dict[int, list] = defaultdict(list)
     for ev in arrivals:
         if ev.kind == "reply":
@@ -175,6 +176,8 @@ def _payload(episode_id: str, events: list, lam: float, source: str, forget: boo
                 "grey": {"p": {h: round(g.p[h], 4) for h in g.p}}, "replies": replies.get(b["minute"], []),
                 "stats": s}
                for b, d, g, s in zip(belief_rows, decision_rows, grey, stats)]
+    if demo:
+        minutes = [m for m in minutes if m["minute"] <= DEMO_END_MIN]
     payload = {"episode_id": episode_id, "lam": lam, "minutes": minutes, "synthetic": True, "source": source,
                "mode": "demo" if demo else "live"}
     if demo:

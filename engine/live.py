@@ -56,13 +56,16 @@ def foresight_top1(buckets: dict, spec: dict, lags: dict, m: int) -> list[dict]:
 
 
 class LiveEpisode:
-    def __init__(self, episode_id: str, lam: float, ask_enabled: bool, responder, forget: bool = True) -> None:
+    def __init__(self, episode_id: str, lam: float, ask_enabled: bool, responder, forget: bool = True,
+                 spec_overrides: dict | None = None, forced_ask_min: int | None = None) -> None:
         self.episode_id = episode_id
         self.lam = lam
         self.ask_enabled = ask_enabled
         self.responder = responder
         self.forget = forget
-        self.spec = load_spec()
+        # Scripted demo only: spec_overrides changes config values for one run; forced_ask_min asks Q1 at that minute
+        self.forced_ask_min = forced_ask_min
+        self.spec = {**load_spec(), **(spec_overrides or {})}
         self.cost = _load("cost.json")
         self.hyst = _load("hyst.json")
         self.lags = _load("lags.json")
@@ -87,6 +90,9 @@ class LiveEpisode:
         d = decide(b.p, self.prev_action, self.minutes_in_action, m, self.lam, self.cost, self.hyst,
                    self.questions, self.asks, self.last_ask_min, self.trust.mean(RESPONDER_ID),
                    corroborated(buckets, self.spec, m), ask_threshold=self.spec["ask_threshold"])
+        if self.forced_ask_min == m and d.ask is None and self.asks == 0:
+            q = next(q for q in self.questions if q.qid == "Q1")
+            d.ask = {"question_id": q.qid, "text": q.text, "voi_net": None, "scripted": True}
 
         self.minutes_in_action = 1 if d.action != self.prev_action else self.minutes_in_action + 1
         self.prev_action = d.action
@@ -119,13 +125,15 @@ class LiveEpisode:
 
 
 def run_live(events: list[Event], lam: float = 1.0, ask_enabled: bool = True,
-             responder=None, forget: bool = True) -> tuple[list[dict], list[dict], list[Event]]:
+             responder=None, forget: bool = True, spec_overrides: dict | None = None,
+             forced_ask_min: int | None = None) -> tuple[list[dict], list[dict], list[Event]]:
     # Replays the episode as a clock: arrivals and minute closures happen in time order.
     # responder is injected by the caller (the server passes its responder in); with None, ASKs are logged but unanswered.
     # Returns belief rows, decision rows, and every event that arrived (including replies).
     if not events:
         return [], [], []
-    ep = LiveEpisode(events[0].episode_id, lam, ask_enabled, responder, forget)
+    ep = LiveEpisode(events[0].episode_id, lam, ask_enabled, responder, forget,
+                     spec_overrides=spec_overrides, forced_ask_min=forced_ask_min)
     ep.heap = [(ev.received_time_s, ev.event_id, ev) for ev in events]
     heapq.heapify(ep.heap)
 

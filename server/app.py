@@ -18,6 +18,7 @@ from engine.types import Event
 # The server wires the responder into the engine as a function (MAIN §8.4); the engine itself stays free of these imports.
 from generator.responder import reply as sealed_reply
 from generator.scenarios import apply_silence, build_injection
+from server.demo import DEMO_ASK_MIN, DEMO_DIR, DEMO_LABEL, DEMO_SPEC, scripted_reply
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 WEB_DIR = os.path.join(ROOT, "web")
@@ -143,10 +144,17 @@ def _minute_stats(accepted: list[Event], arrivals: list[Event], belief_rows: lis
 
 
 def _payload(episode_id: str, events: list, lam: float, source: str, forget: bool = True,
-             ask_enabled: bool = True) -> dict:
-    responder = _responder_for(episode_id, source) if ask_enabled else None
-    belief_rows, decision_rows, arrivals = run_live(events, lam=lam, ask_enabled=ask_enabled,
-                                                    responder=responder, forget=forget)
+             ask_enabled: bool = True, demo: bool = False) -> dict:
+    if demo:
+        # SCRIPTED DEMO: scripted answers, raised reply weight, forced ASK minute. See server/demo.py
+        responder = scripted_reply
+        belief_rows, decision_rows, arrivals = run_live(events, lam=lam, ask_enabled=True, responder=responder,
+                                                        forget=forget, spec_overrides=DEMO_SPEC,
+                                                        forced_ask_min=DEMO_ASK_MIN)
+    else:
+        responder = _responder_for(episode_id, source) if ask_enabled else None
+        belief_rows, decision_rows, arrivals = run_live(events, lam=lam, ask_enabled=ask_enabled,
+                                                        responder=responder, forget=forget)
 
     ingestor = Ingestor(REGISTERED_RESPONDERS)
     for ev in arrivals:
@@ -167,7 +175,11 @@ def _payload(episode_id: str, events: list, lam: float, source: str, forget: boo
                 "grey": {"p": {h: round(g.p[h], 4) for h in g.p}}, "replies": replies.get(b["minute"], []),
                 "stats": s}
                for b, d, g, s in zip(belief_rows, decision_rows, grey, stats)]
-    return {"episode_id": episode_id, "lam": lam, "minutes": minutes, "synthetic": True, "source": source}
+    payload = {"episode_id": episode_id, "lam": lam, "minutes": minutes, "synthetic": True, "source": source,
+               "mode": "demo" if demo else "live"}
+    if demo:
+        payload["demo_label"] = DEMO_LABEL
+    return payload
 
 
 def _to_events(rows: list[dict]) -> list[Event]:
@@ -256,6 +268,16 @@ def index() -> FileResponse:
     return FileResponse(os.path.join(WEB_DIR, "index.html"))
 
 
+@app.get("/twin")
+def twin() -> FileResponse:
+    return FileResponse(os.path.join(WEB_DIR, "twin.html"))
+
+
+@app.get("/ward3d.js")
+def ward3d_js() -> FileResponse:
+    return FileResponse(os.path.join(WEB_DIR, "ward3d.js"), media_type="application/javascript")
+
+
 @app.get("/api/health")
 def health() -> dict:
     return {"ok": True, "mode": "live", "synthetic": True}
@@ -270,7 +292,12 @@ def episodes() -> list[dict]:
 
 
 @app.get("/api/episodes/{episode_id}")
-def episode(episode_id: str, lam: float = 1.0) -> dict:
+def episode(episode_id: str, lam: float = 1.0, mode: Literal["live", "demo"] = "live") -> dict:
+    if mode == "demo":
+        path = os.path.join(DEMO_DIR, f"{episode_id}.jsonl")
+        if not os.path.exists(path):
+            raise HTTPException(status_code=404, detail="demo streams not built: run python -m server.demo")
+        return _payload(episode_id, _read_stream(path, episode_id), lam, "SCRIPTED DEMO streams", demo=True)
     events, source = _episode_events(episode_id)
     if not events:
         return {"episode_id": episode_id, "lam": lam, "minutes": [], "synthetic": True,

@@ -1,0 +1,379 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="color-scheme" content="dark">
+  <link rel="icon" href="data:,">
+  <title>Twin-Breaker · Twin test (SYNTHETIC)</title>
+  <style>
+    :root {
+      color-scheme: dark;
+      --surface-1: #1a1a19;
+      --surface-2: #232321;
+      --line: #34332f;
+      --text-primary: #f0efec;
+      --text-secondary: #c3c2b7;
+      --text-muted: #8c8b82;
+      --twin-a: #3987e5;
+      --twin-b: #d95926;
+      --n: #199e70; --s: #c98500; --i: #d95926; --c: #e66767;
+      --warn: #fab219; --serious: #ec835a; --critical: #d03b3b;
+      --display: "Iowan Old Style", "Palatino Linotype", Georgia, serif;
+      --ui: "Segoe UI", system-ui, sans-serif;
+      --mono: "Cascadia Mono", Consolas, monospace;
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0; background: radial-gradient(1200px 600px at 80% -10%, #24262a 0%, var(--surface-1) 60%);
+      color: var(--text-primary); font: 14px/1.5 var(--ui);
+    }
+    header {
+      display: flex; flex-wrap: wrap; gap: 16px 28px; align-items: center; justify-content: space-between;
+      padding: 18px 28px; border-bottom: 1px solid var(--line);
+    }
+    h1 { font: 600 26px/1.1 var(--display); margin: 0; }
+    h2 { font: 600 17px/1.2 var(--display); margin: 0 0 10px; }
+    .sub { color: var(--text-secondary); font-size: 12px; letter-spacing: .08em; text-transform: uppercase; }
+    .banner {
+      background: #2b2410; color: #f5d37a; border: 1px solid #5a4a1c; border-radius: 6px;
+      padding: 2px 8px; font-size: 11px; margin: 6px 28px 0; width: fit-content;
+    }
+    main { padding: 20px 28px 40px; display: grid; gap: 18px; grid-template-columns: repeat(12, 1fr); }
+    .card {
+      background: var(--surface-2); border: 1px solid var(--line); border-radius: 14px;
+      padding: 18px 20px; box-shadow: 0 12px 30px rgba(0,0,0,.25); min-width: 0;
+    }
+    .span-12 { grid-column: span 12; }
+    .span-6 { grid-column: span 6; }
+    @media (max-width: 900px) { .span-6 { grid-column: span 12; } }
+    .controls { display: flex; flex-wrap: wrap; gap: 10px; align-items: center; }
+    button, select {
+      font: 500 13px var(--ui); color: var(--text-primary); background: #2c2c29; border: 1px solid #45443f;
+      border-radius: 999px; padding: 7px 14px; cursor: pointer;
+    }
+    button.primary { background: var(--twin-a); border-color: var(--twin-a); color: #fff; }
+    button:focus-visible, select:focus-visible { outline: 2px solid #8fbcf5; outline-offset: 2px; }
+    .clock { font: 500 14px var(--mono); color: var(--text-secondary); min-width: 150px; }
+    .muted { color: var(--text-muted); }
+    .stage {
+      display: grid; grid-template-columns: repeat(4, 1fr); gap: 10px; margin-top: 2px;
+    }
+    .step {
+      border: 1px solid #45443f; border-radius: 10px; padding: 10px 12px; background: #22221f; font-size: 13px;
+      color: var(--text-muted); transition: all .4s ease;
+    }
+    .step.on { color: var(--text-primary); border-color: #5a5950; background: #292926; }
+    .step.done { color: var(--text-secondary); }
+    .step strong { display: block; font: 600 12px var(--ui); letter-spacing: .06em; text-transform: uppercase; margin-bottom: 4px; }
+    .twin-head { display: flex; justify-content: space-between; align-items: baseline; gap: 12px; margin-bottom: 14px; }
+    #panel-A, #panel-B { border-top: 4px solid; }
+    #panel-A { border-top-color: var(--twin-a); }
+    #panel-B { border-top-color: var(--twin-b); }
+    .card h2 { letter-spacing: .005em; }
+    .ward { width: 100%; height: auto; display: block; margin-bottom: 4px; }
+    .step { transition: transform .3s ease; }
+    .step.on { transform: translateY(-2px); box-shadow: 0 8px 20px rgba(0,0,0,.25); }
+    .step.done { border-color: #2f6b4f; }
+    .step.done strong::after { content: "  ✓"; color: #7ed8a8; }
+    header h1 { background: linear-gradient(90deg, var(--twin-a), var(--twin-b)); -webkit-background-clip: text; background-clip: text; color: transparent; }
+    .twin-tag { font: 600 12px var(--ui); letter-spacing: .08em; text-transform: uppercase; padding: 4px 10px; border-radius: 999px; color: #fff; }
+    .action {
+      display: inline-flex; align-items: center; gap: 8px; font: 600 14px var(--ui); letter-spacing: .05em;
+      padding: 8px 14px; border-radius: 10px; color: #111; transition: background .4s ease;
+    }
+    .bar-row { display: grid; grid-template-columns: 110px 1fr 60px; gap: 10px; align-items: center; font-size: 13px; margin-bottom: 8px; }
+    .bar-track { height: 14px; background: #2a2a27; border-radius: 999px; overflow: hidden; }
+    .bar-fill { height: 100%; border-radius: 999px; transition: width .6s ease; }
+    .val { font: 500 13px var(--mono); text-align: right; }
+    .ask-box {
+      margin-top: 14px; padding: 12px 14px; border-radius: 10px; background: #22221f; border: 1px solid #34332f; font-size: 13px; min-height: 64px;
+    }
+    .ask-box.reply { border-color: #5a5950; }
+    .pill { font: 600 11px var(--ui); padding: 3px 9px; border-radius: 999px; background: #2c2c29; color: var(--text-secondary); }
+    .split { font: 600 22px var(--display); margin: 0 0 4px; }
+    .chartbox { position: relative; height: 340px; }
+    .legend { display: flex; flex-wrap: wrap; gap: 16px; font-size: 12px; color: var(--text-secondary); margin-top: 8px; }
+    .legend span::before { content: ""; display: inline-block; width: 18px; height: 3px; border-radius: 2px; margin-right: 6px; vertical-align: middle; background: var(--c, #888); }
+    .foot { color: var(--text-muted); font-size: 12px; text-align: center; padding: 6px 28px 28px; }
+  </style>
+</head>
+<body>
+  <header>
+    <div>
+      <div class="sub">Team Obsidian · CASCADE '26 · PS 2.1 · Twin test</div>
+      <h1>Same data, then one answer</h1>
+    </div>
+    <div class="controls" aria-label="Playback controls">
+      <select id="mode" aria-label="Data source">
+        <option value="demo" selected>Scripted demo</option><option value="live">Live streams (no scripted answers)</option>
+      </select>
+      <select id="lam" aria-label="Cost of a missed alert, lambda">
+        <option value="0.5">λ 0.5</option><option value="1" selected>λ 1</option>
+        <option value="2">λ 2</option><option value="4">λ 4</option>
+      </select>
+      <button id="play" class="primary">▶ Play</button>
+      <button id="reset">↺ Reset</button>
+      <span id="clock" class="clock">minute –</span>
+    </div>
+  </header>
+  <div class="banner">SYNTHETIC. Scale inspired by a published 2005 Mumbai rainfall figure (NIDM). Not real telemetry. Fictional event at a real location.</div>
+  <div class="banner" id="demo-label" style="background:#3a1a14;border-color:#7a3426;color:#f7b8a6" hidden></div>
+
+  <main>
+    <section class="card span-12" aria-labelledby="stage-title">
+      <h2 id="stage-title">Where we are</h2>
+      <div class="stage">
+        <div class="step" id="st-prefix"><strong>1 · Identical prefix</strong>Both twins see the same passive data for the first 7 minutes.</div>
+        <div class="step" id="st-ask"><strong>2 · ASK sent</strong>The engine asks one question when the expected gain clears the threshold.</div>
+        <div class="step" id="st-reply"><strong>3 · Reply back</strong>The marshal answers each twin. The answers can differ.</div>
+        <div class="step" id="st-split"><strong>4 · Divergence</strong>The two outputs part ways once the replies are in.</div>
+      </div>
+      <p class="split" id="split-line" style="margin-top:16px"></p>
+      <p class="muted" id="split-note" style="margin:0;font-size:13px"></p>
+    </section>
+
+    <section class="card span-12" aria-labelledby="chart-title">
+      <h2 id="chart-title">P(cascade) for both twins</h2>
+      <div class="chartbox"><canvas id="chart" role="img" aria-label="Line chart of P(C) for Twin A and Twin B by minute"></canvas></div>
+      <div class="legend">
+        <span style="--c:var(--twin-a)">Twin A (ours)</span>
+        <span style="--c:var(--twin-b)">Twin B (ours)</span>
+        <span style="--c:#8c8b82">Naive baseline (dashed)</span>
+        <span style="--c:#8c8b82">ALERT line for naive 0.7 (dotted)</span>
+      </div>
+    </section>
+
+    <section class="card span-6" id="panel-A" aria-labelledby="a-title">
+      <div class="twin-head">
+        <h2 id="a-title" style="margin:0">Twin A</h2>
+        <span class="twin-tag" style="background:var(--twin-a)" id="tag-A">A</span>
+      </div>
+      <svg id="ward-A" class="ward" role="img" aria-label="Schematic 3D ward view, Twin A"></svg>
+      <div id="bars-A" style="margin-top:12px"></div>
+      <div id="action-A" style="margin-top:14px"></div>
+      <div class="ask-box" id="ask-A"></div>
+    </section>
+
+    <section class="card span-6" id="panel-B" aria-labelledby="b-title">
+      <div class="twin-head">
+        <h2 id="b-title" style="margin:0">Twin B</h2>
+        <span class="twin-tag" style="background:var(--twin-b)" id="tag-B">B</span>
+      </div>
+      <svg id="ward-B" class="ward" role="img" aria-label="Schematic 3D ward view, Twin B"></svg>
+      <div id="bars-B" style="margin-top:12px"></div>
+      <div id="action-B" style="margin-top:14px"></div>
+      <div class="ask-box" id="ask-B"></div>
+    </section>
+  </main>
+  <div class="foot">Synthetic data only · engine runs on numpy · no network at runtime</div>
+
+<script src="/vendor/chart.umd.min.js"></script>
+<script src="/ward3d.js"></script>
+<script>
+const STATES = ["N", "S", "I", "C"];
+const STATE_NAME = { N: "Normal", S: "Storm-noise", I: "Incident", C: "Cascade" };
+const STATE_COLOR = { N: "var(--n)", S: "var(--s)", I: "var(--i)", C: "var(--c)" };
+const ACTION_COLOR = { WATCH: "#8c8b82", PREPARE: "var(--warn)", ALERT: "var(--serious)", ESCALATE: "var(--critical)" };
+const ACTION_ICON = { WATCH: "◌", PREPARE: "◔", ALERT: "▲", ESCALATE: "⬢" };
+const SPLIT_TOL = 0.02;
+const MS_PER_MIN = 4000;
+const PREFIX_MIN = 7;
+const ALERT_LINE = 0.7;
+
+const $ = (id) => document.getElementById(id);
+const pct = (v) => (v * 100).toFixed(1) + "%";
+const esc = (s) => String(s).replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
+
+let A = null, B = null, n = 0, idx = 0, timer = null, chart = null;
+
+function summarise(twin) {
+  // First ask, first reply, and the minute each twin's answer came back
+  const ask = twin.minutes.find((r) => r.decision.ask);
+  const reply = twin.minutes.find((r) => r.replies && r.replies.length);
+  return {
+    askMinute: ask ? ask.minute : null,
+    askText: ask ? ask.decision.ask.text || ask.decision.ask.question_id : null,
+    replyMinute: reply ? reply.minute : null,
+    replyAnswer: reply ? reply.replies[0].answer : null,
+  };
+}
+
+function firstSplit(a, b) {
+  for (let i = 0; i < Math.min(a.minutes.length, b.minutes.length); i++) {
+    if (Math.abs(a.minutes[i].belief.p.C - b.minutes[i].belief.p.C) >= SPLIT_TOL) return i;
+  }
+  return null;
+}
+
+function chartData(upto) {
+  const labels = [], a = [], b = [], ga = [], gb = [], line = [];
+  for (let i = 0; i <= upto; i++) {
+    labels.push(`${A.minutes[i].minute}`);
+    a.push(A.minutes[i].belief.p.C);
+    b.push(B.minutes[i].belief.p.C);
+    ga.push(A.minutes[i].grey.p.C);
+    gb.push(B.minutes[i].grey.p.C);
+    line.push(ALERT_LINE);
+  }
+  return { labels, a, b, ga, gb, line };
+}
+
+function initChart() {
+  const ctx = $("chart").getContext("2d");
+  const base = { tension: 0.25, pointRadius: 2.5, pointHoverRadius: 5, borderWidth: 2.5, spanGaps: true };
+  chart = new Chart(ctx, {
+    type: "line",
+    data: { labels: [], datasets: [
+      { ...base, label: "Twin A (ours)", borderColor: "#3987e5", backgroundColor: "#3987e5", data: [] },
+      { ...base, label: "Twin B (ours)", borderColor: "#d95926", backgroundColor: "#d95926", data: [] },
+      { ...base, label: "Naive A", borderColor: "#8c8b82", borderDash: [6, 5], borderWidth: 1.5, data: [] },
+      { ...base, label: "Naive B", borderColor: "#6b6a63", borderDash: [2, 4], borderWidth: 1.5, data: [] },
+      { ...base, label: "ALERT line", borderColor: "#5a5950", borderDash: [1, 4], borderWidth: 1, data: [] },
+    ] },
+    options: {
+      animation: { duration: 500 },
+      responsive: true, maintainAspectRatio: false,
+      interaction: { mode: "index", intersect: false },
+      scales: {
+        y: { min: 0, max: 1, grid: { color: "#2a2a27" }, ticks: { color: "#8c8b82", callback: (v) => (v * 100) + "%" } },
+        x: { title: { display: true, text: "simulated minute", color: "#8c8b82" }, grid: { display: false }, ticks: { color: "#8c8b82" } },
+      },
+      plugins: { legend: { display: false }, tooltip: { callbacks: { label: (c) => `${c.dataset.label}: ${(c.parsed.y * 100).toFixed(1)}%` } } },
+    },
+  });
+}
+
+function updateChart() {
+  const d = chartData(idx);
+  chart.data.labels = d.labels;
+  chart.data.datasets[0].data = d.a;
+  chart.data.datasets[1].data = d.b;
+  chart.data.datasets[2].data = d.ga;
+  chart.data.datasets[3].data = d.gb;
+  chart.data.datasets[4].data = d.line;
+  chart.update();
+}
+
+function bars(p) {
+  return STATES.map((h) => `
+    <div class="bar-row">
+      <span><span style="display:inline-block;width:9px;height:9px;border-radius:50%;background:${STATE_COLOR[h]};margin-right:6px"></span>${STATE_NAME[h]}</span>
+      <div class="bar-track" aria-hidden="true"><div class="bar-fill" style="width:${(p[h] * 100).toFixed(2)}%;background:${STATE_COLOR[h]}"></div></div>
+      <span class="val">${pct(p[h])}</span>
+    </div>`).join("");
+}
+
+function actionBadge(action, changed) {
+  return `<span class="action" style="background:${ACTION_COLOR[action] || "#8c8b82"}">${ACTION_ICON[action] || ""} ${esc(action)}</span>
+    ${changed ? ' <span class="pill">changed this minute</span>' : ""}`;
+}
+
+function askBox(s, i) {
+  const parts = [];
+  if (s.askMinute !== null && i >= s.askMinute) {
+    parts.push(`<div><span class="pill">ASK</span> sent at minute ${s.askMinute}: “${esc(s.askText)}”</div>`);
+  }
+  if (s.replyMinute !== null && i >= s.replyMinute) {
+    parts.push(`<div style="margin-top:6px"><span class="pill">REPLY</span> minute ${s.replyMinute}: <strong>${esc(s.replyAnswer)}</strong></div>`);
+  }
+  if (!parts.length) {
+    return `<span class="muted">No question sent yet. Both twins are still on the same data.</span>`;
+  }
+  return parts.join("");
+}
+
+function renderPanel(letter, twin, s, i) {
+  const r = twin.minutes[i];
+  const changed = i > 0 && twin.minutes[i - 1].decision.action !== r.decision.action;
+  window.renderWard3D($(`ward-${letter}`), {
+    states: r.stats.gateway_state || {}, silent: r.stats.silent_gateways || [], pc: r.belief.p.C,
+  });
+  $(`bars-${letter}`).innerHTML = bars(r.belief.p);
+  $(`action-${letter}`).innerHTML = actionBadge(r.decision.action, changed);
+  $(`ask-${letter}`).innerHTML = askBox(s, i);
+  $(`ask-${letter}`).className = "ask-box" + (s.replyMinute !== null && i >= s.replyMinute ? " reply" : "");
+}
+
+function render() {
+  if (!A || !B || !A.minutes.length) { $("clock").textContent = "no data"; return; }
+  const r = A.minutes[idx];
+  $("clock").textContent = `minute ${r.minute} · ${Math.min(idx + 1, n)} of ${n}`;
+  updateChart();
+  const sa = summarise(A), sb = summarise(B);
+  renderPanel("A", A, sa, idx);
+  renderPanel("B", B, sb, idx);
+
+  const split = firstSplit(A, B);
+  const ask = sa.askMinute ?? sb.askMinute;
+  const reply = sa.replyMinute ?? sb.replyMinute;
+  const visibleSplit = split !== null && split <= idx;
+
+  $("st-prefix").className = "step " + (idx < PREFIX_MIN ? "on" : "done");
+  $("st-ask").className = "step " + (ask !== null && idx >= ask ? "done" : (ask !== null && idx + 1 >= ask ? "on" : ""));
+  $("st-reply").className = "step " + (reply !== null && idx >= reply ? "done" : (reply !== null && idx + 1 >= reply ? "on" : ""));
+  $("st-split").className = "step " + (visibleSplit ? "on" : "");
+
+  const replyLine = reply !== null && idx >= reply
+    ? `Reply at minute ${reply}: Twin A “${sa.replyAnswer ?? "–"}”, Twin B “${sb.replyAnswer ?? "–"}”.`
+    : "";
+  if (visibleSplit) {
+    const pa = A.minutes[split].belief.p.C, pb = B.minutes[split].belief.p.C;
+    $("split-line").textContent = `Diverged at minute ${A.minutes[split].minute}: P(C) ${pct(pa)} vs ${pct(pb)}`;
+    $("split-note").textContent = replyLine;
+  } else if (idx >= n - 1) {
+    $("split-line").textContent = "The twins never diverged by more than 2 points on this run.";
+    $("split-note").textContent = replyLine + " Treat this as a result, not a demo: the engine has not separated these twins yet.";
+  } else {
+    $("split-line").textContent = "";
+    $("split-note").textContent = replyLine || "Playing. The two outputs stay together until the replies arrive.";
+  }
+}
+
+function tick() {
+  if (idx >= n - 1) { pause(); return; }
+  idx++;
+  render();
+}
+function play() {
+  if (!A || !A.minutes.length) return;
+  if (idx >= n - 1) idx = 0;
+  $("play").textContent = "❚❚ Pause";
+  clearInterval(timer);
+  timer = setInterval(tick, MS_PER_MIN);
+  render();
+}
+function pause() {
+  clearInterval(timer); timer = null;
+  $("play").textContent = "▶ Play";
+}
+
+async function load() {
+  pause();
+  const lam = $("lam").value;
+  const mode = $("mode").value;
+  $("clock").textContent = "loading…";
+  const q = `lam=${lam}&mode=${mode}`;
+  const [a, b] = await Promise.all([
+    fetch(`/api/episodes/P1A-s0007?${q}`).then((r) => r.json()),
+    fetch(`/api/episodes/P1B-s0007?${q}`).then((r) => r.json()),
+  ]);
+  A = a; B = b;
+  $("demo-label").hidden = mode !== "demo";
+  $("demo-label").textContent = a.demo_label || "";
+  n = Math.min(A.minutes.length, B.minutes.length);
+  // ?at=<minute> jumps straight to a minute (for screenshots and review)
+  idx = Math.min(Number(new URLSearchParams(location.search).get("at") || 0), n - 1);
+  if (!chart) initChart();
+  render();
+}
+
+$("play").addEventListener("click", () => (timer ? pause() : play()));
+$("reset").addEventListener("click", () => { pause(); idx = 0; render(); });
+$("lam").addEventListener("change", load);
+$("mode").addEventListener("change", load);
+
+load();
+</script>
+</body>
+</html>

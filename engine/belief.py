@@ -124,8 +124,10 @@ def step(prev: Belief, minute_events: list[Event], spec: dict, trust: Trust,
             p[n] -= delta
             p[s] += delta
 
-    # 5. Reply: P(yes|H) = r p_yes(H) + (1 - r) 0.5, tau applied as for sensors
+    # 5. Reply: P(yes|H) = r p_yes(H) + (1 - r) 0.5, tau applied as for sensors, times reply_weight
+    # (reply_weight > 1 lets one officer answer outweigh the many correlated sensors; default 1 = plain tau)
     if not grey:
+        reply_w = spec.get("reply_weight", 1.0)
         for ev in minute_events:
             if ev.kind != "reply" or ev.question_id not in questions:
                 continue
@@ -133,7 +135,7 @@ def step(prev: Belief, minute_events: list[Event], spec: dict, trust: Trust,
             py = questions[ev.question_id]
             p_yes = np.array([r * py[h] + (1 - r) * 0.5 for h in HYPS])
             lik = p_yes if ev.answer == "yes" else 1 - p_yes
-            p = p * lik ** tau
+            p = p * lik ** (tau * reply_w)
     p = p / p.sum()
 
     # 6. Reason bits: tau w log2(P_mix(b|top) / P_mix(b|second)), top 3 by |bits|

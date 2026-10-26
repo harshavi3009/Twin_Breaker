@@ -20,6 +20,8 @@ SEED = 7
 EPISODES = ("P1A-s0007", "P1B-s0007")
 DEMO_ANSWERS = {"P1A-s0007": "yes", "P1B-s0007": "no"}
 DEMO_ASK_MIN = 7
+DEMO_REPLY_DELAY_S = 0  # the officer answers straight away
+DEMO_END_MIN = 10  # the demo stops after minute 10
 DEMO_SPEC = {"reply_weight": 16.0}
 # Both twins above 20 cm by minute 7 (the responder threshold); A is the cascade, B the false alarm
 DEMO_WORLD = {"cascade": {"onset_min": [2, 2], "slope_cm_per_min": 5.0},
@@ -50,7 +52,7 @@ def build_streams(out_dir: str = DEMO_DIR) -> None:
 
 def scripted_reply(episode_id: str, question_id: str, asked_at_s: int) -> dict:
     # Twin A's marshal says yes, twin B's says no. Scripted, so it does not read sealed truth.
-    return {"answer": DEMO_ANSWERS[episode_id], "responder_id": "marshal-W9-01", "delay_s": 60}
+    return {"answer": DEMO_ANSWERS[episode_id], "responder_id": "marshal-W9-01", "delay_s": DEMO_REPLY_DELAY_S}
 
 
 if __name__ == "__main__":
